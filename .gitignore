@@ -20,8 +20,8 @@
 # Go workspace file
 go.work
 
-/gh-not
-/gh-not.exe
+/gh-raw
+/gh-raw.exe
 
 /config.yaml
 /cache-test.json

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
@@ -28,16 +29,16 @@ func startHttpServer(wg *sync.WaitGroup) (*http.Server, int) {
 			log.Printf("Request received %#v", r)
 			formatRequest(*r)
 		}),
-        // XXX: this changes nothing
-		TLSConfig: &tls.Config{ InsecureSkipVerify: true, },
+		// XXX: this changes nothing
+		TLSConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
 	go func() {
 		defer wg.Done()
 
-		fmt.Printf("listening on :%d\n", port)
-        // XXX: certbot won't generate a cert for localhost, self-signed cert
-        // also doesn't work.
+		log.Printf("listening on :%d\n", port)
+		// XXX: certbot won't generate a cert for localhost, self-signed cert
+		// also doesn't work.
 		// if err := srv.ServeTLS(listener, "/tmp/cert/localhost.crt", "/tmp/cert/localhost.key"); err != http.ErrServerClosed {
 		if err := srv.Serve(listener); err != http.ErrServerClosed {
 			log.Fatalf("ListenAndServe(): %v", err)
@@ -47,8 +48,31 @@ func startHttpServer(wg *sync.WaitGroup) (*http.Server, int) {
 	return srv, port
 }
 
+const curlTemplate = `
+curl -X {{ .Method }} \
+  {{- /* {{ if .TLS }}https://{{ else }}http://{{ end }}{{ .Host }}{{ .URL.Scheme }} \ */}}
+  https://api.github.com{{ .URL }} \
+  {{ range $key, $values := .Header -}}
+    {{- if eq $key "Authorization" -}}
+      -H "{{ $key }}: token $GITHUB_TOKEN" \
+    {{- else -}}
+       {{- range $values -}}
+         -H "{{ $key }}: {{ . }}" \
+       {{- end -}}
+    {{ end }}
+  {{ end }}
+`
+
 func formatRequest(r http.Request) {
-	fmt.Printf("%s %s %s\n", r.Method, r.URL, r.Proto)
+	t, err := template.New("test").Parse(curlTemplate)
+	if err != nil {
+		panic(err)
+	}
+
+	err = t.Execute(os.Stdout, r)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func main() {
@@ -68,14 +92,19 @@ func main() {
 	go func() {
 		defer func() { done <- syscall.SIGTERM }()
 
-		cmd := exec.Command("gh")
+		// XXX: binary built with https://github.com/nobe4/cli/pull/1
+		cmd := exec.Command("/tmp/gh")
 
 		// XXX: This fails because gh won't use a non-https host.
-        // cc https://github.com/cli/cli/issues/8640
-		cmd.Env = []string{fmt.Sprintf("GH_HOST=localhost:%d", port)}
+		// cc https://github.com/cli/cli/issues/8640
+		cmd.Env = []string{
+			fmt.Sprintf("GH_ENTERPRISE_TOKEN=%s", os.Getenv("GH_TOKEN")),
+			// "GH_DEBUG=api",
+			fmt.Sprintf("GH_HOST=github.localhost:%d", port),
+		}
 		cmd.Args = append(cmd.Args, os.Args[1:]...)
 
-		log.Printf("cmd: %#v", cmd)
+		// log.Printf("cmd: %#v", cmd)
 
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

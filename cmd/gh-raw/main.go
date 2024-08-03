@@ -48,19 +48,18 @@ func startHttpServer(wg *sync.WaitGroup) (*http.Server, int) {
 	return srv, port
 }
 
-const curlTemplate = `
+const curlTemplate = `{{- /* no newline at start */ -}}
 curl -X {{ .Method }} \
   {{- /* {{ if .TLS }}https://{{ else }}http://{{ end }}{{ .Host }}{{ .URL.Scheme }} \ */}}
   https://api.github.com{{ .URL }} \
   {{ range $key, $values := .Header -}}
-    {{- if eq $key "Authorization" -}}
-      -H "{{ $key }}: token $GITHUB_TOKEN" \
-    {{- else -}}
+    {{- if ne $key "Authorization" -}}
        {{- range $values -}}
          -H "{{ $key }}: {{ . }}" \
        {{- end -}}
     {{ end }}
-  {{ end }}
+  {{ end -}}
+  -H "Authorization: token $GITHUB_TOKEN"
 `
 
 func formatRequest(r http.Request) {
@@ -98,7 +97,6 @@ func main() {
 		// XXX: This fails because gh won't use a non-https host.
 		// cc https://github.com/cli/cli/issues/8640
 		cmd.Env = []string{
-			fmt.Sprintf("GH_ENTERPRISE_TOKEN=%s", os.Getenv("GH_TOKEN")),
 			// "GH_DEBUG=api",
 			fmt.Sprintf("GH_HOST=github.localhost:%d", port),
 		}

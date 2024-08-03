@@ -9,6 +9,20 @@
 > Under heavy development, expect nothing.
 > PRs/issues welcome!
 
+# Examples
+
+```shell
+$ ./gh-raw api /user
+curl -X GET \
+  https://api.github.com/user \
+  -H "Accept: */*" \
+  -H "Accept-Encoding: gzip" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  -H "Time-Zone: Europe/Berlin" \
+  -H "User-Agent: GitHub CLI DEV" \
+  -H "Authorization: token $GITHUB_TOKEN"
+```
+
 # Install
 
 ```shell
